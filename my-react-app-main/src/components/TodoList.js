@@ -9,7 +9,7 @@ const TodoList = ({ todos, onToggleCompleted, onDeleteTodo, onUpdateTodo }) => {
   }
 
   return (
-    <ul style={{ listStyleType: "none", padding: 0 }}>
+    <div className="todo-list-container">
       {todos.map((todo) => (
         <TodoItem
           key={todo.id}
@@ -19,7 +19,7 @@ const TodoList = ({ todos, onToggleCompleted, onDeleteTodo, onUpdateTodo }) => {
           onUpdateTodo={onUpdateTodo}
         />
       ))}
-    </ul>
+    </div>
   );
 };
 
