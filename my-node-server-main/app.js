@@ -1,13 +1,12 @@
 require("dotenv").config();
 const express = require("express");
 const app = express();
+const { router: todoRoutes, todos} = require("./routes/todo");
 const cors = require("cors");
-const port = process.env.PORT || 3001;
-const todoRoutes = require("./routes/tododb.js");
-// const { todos } = require("./routes/todo.js");
 const db = require("./database/db");
-
-
+const port = process.env.PORT || 3001;
+const authRoutes = require("./routes/auth.js");
+const authMiddleware = require("./middleware/auth");
 
 const expressLayouts = require("express-ejs-layouts");
 app.use(expressLayouts);
@@ -15,27 +14,28 @@ app.use(cors());
 app.use(express.json());
 app.set("view engine", "ejs");
 
+app.use("/api/auth", authRoutes);
+app.use("/api/todos", authMiddleware, todoRoutes);
+
 app.use("/todos", todoRoutes);
 
-// app.get("/todos-data", (req, res) => {
-//   res.json(todos);
-// });
+app.get("/todos-data", (req, res) => {
+  res.json(todos);
+});
 
 app.get("/todos-list", (req, res) => {
   res.render("todos-page", { todos: todos, layout: "layouts/main-layout" });
 });
 
+
 app.get("/", (req, res) => {
-  res.render("index", { 
+  res.render("index", {
     layout: "layouts/main-layout",
   });
-    
 });
 
 app.get("/contact", (req, res) => {
-  res.render("contact", {
-    layout: "layouts/main-layout" 
-  });
+  res.render("contact", {layout: "layouts/main-layout"});
 });
 
 app.get("/todo-view", (req, res) => {
@@ -51,9 +51,9 @@ app.get("/todo-view", (req, res) => {
 // GET: Mengambil semua todos
 app.get("/api/todos", (req, res) => {
   const { search } = req.query;
-  console.log(
-    `Menerima permintaan GET untuk todos. Kriteria pencarian: '${search}'`
-  );
+  console.log(`
+    Menerima permintaan GET untuk todos. Kriteria pencarian: '${search}'
+  `);
 
   let query = "SELECT * FROM todos";
   const params = [];
@@ -98,21 +98,32 @@ app.post("/api/todos", (req, res) => {
     });
 });
 
-// PUT: Memperbarui status 'completed' saja
+// PUT
 app.put("/api/todos/:id", (req, res) => {
     const { id } = req.params;
-    const { completed } = req.body;
-
-    console.log(`Menerima permintaan PUT untuk ID: ${id} dengan status completed: ${completed}`);
-
-    // Validasi input
-    if (typeof completed !== 'boolean') {
-        return res.status(400).json({ error: "Invalid 'completed' value. Must be a boolean." });
-    }
+    const { task, completed } = req.body;
     
-    const query = 'UPDATE todos SET completed = ? WHERE id = ?';
+    console.log(`Menerima permintaan PUT untuk ID: ${id}. Data:, req.body`);
 
-    db.query(query, [completed, id], (err, result) => {
+    if (task === undefined && completed === undefined) {
+        return res.status(400).json({ error: "Task or completed status is required" });
+    }
+
+    let query;
+    let params;
+
+    if (task !== undefined && completed !== undefined) {
+        query = 'UPDATE todos SET task = ?, completed = ? WHERE id = ?';
+        params = [task, completed, id];
+    } else if (task !== undefined) {
+        query = 'UPDATE todos SET task = ? WHERE id = ?';
+        params = [task, id];
+    } else if (completed !== undefined) {
+        query = 'UPDATE todos SET completed = ? WHERE id = ?';
+        params = [completed, id];
+    }
+
+    db.query(query, params, (err, result) => {
         if (err) {
             console.error("Database update error:", err);
             return res.status(500).json({ error: "Internal Server Error" });
@@ -126,10 +137,30 @@ app.put("/api/todos/:id", (req, res) => {
     });
 });
 
+// DELETE: Menghapus todo berdasarkan ID
+app.delete("/api/todos/:id", (req, res) => {
+    const { id } = req.params;
+    console.log(`Menerima permintaan DELETE untuk ID: ${id}`);
+    const query = 'DELETE FROM todos WHERE id = ?';
+    db.query(query, [id], (err, result) => {
+        if (err) {
+            console.error("Database delete error:", err);
+            return res.status(500).json({ error: "Internal Server Error" });
+        }
+        if (result.affectedRows === 0) {
+            console.error("Todo tidak ditemukan untuk ID:", id);
+            return res.status(404).json({ error: 'Todo not found' });
+        }
+        console.log(`Todo dengan ID ${id} berhasil dihapus.`);
+        res.json({ message: 'Todo deleted successfully' });
+    });
+});
+
+
 app.use((req, res) => {
   res.status(404).send("404 - Page Not Found");
 });
 
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server running on http://localhost:${port}`)
 });
